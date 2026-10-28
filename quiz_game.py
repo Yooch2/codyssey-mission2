@@ -22,10 +22,11 @@ MENU = """
 class Quiz:
     """객관식 퀴즈 한 문제를 표현한다."""
 
-    def __init__(self, question, choices, answer):
+    def __init__(self, question, choices, answer, hint=None):
         self.question = question    # 문제 문장
         self.choices = choices      # 선택지 4개가 담긴 리스트
         self.answer = answer        # 정답 번호 (1~4)
+        self.hint = hint            # 힌트 (없으면 None)
 
     def show(self, number=None):
         """문제와 선택지를 화면에 출력한다."""
@@ -47,12 +48,14 @@ class Quiz:
             "question": self.question,
             "choices": self.choices,
             "answer": self.answer,
+            "hint": self.hint,
         }
 
     @classmethod
     def from_dict(cls, data):
         """저장 파일에서 읽은 딕셔너리로 Quiz 객체를 만든다."""
-        return cls(data["question"], data["choices"], data["answer"])
+        # hint 는 나중에 추가된 항목이라 없는 예전 파일도 읽을 수 있게 get 을 쓴다.
+        return cls(data["question"], data["choices"], data["answer"], data.get("hint"))
 
 
 def default_quizzes():
@@ -62,6 +65,7 @@ def default_quizzes():
             "docker run -p 8080:3000 으로 컨테이너를 실행했다. 브라우저에서 접속할 때 쓰는 포트는?",
             ["3000", "8080", "둘 다 접속된다", "80"],
             2,
+            "-p 호스트:컨테이너 순서를 떠올려 보세요.",
         ),
         Quiz(
             "Dockerfile의 EXPOSE 지시어에 대한 설명으로 옳은 것은?",
@@ -72,16 +76,19 @@ def default_quizzes():
                 "컨테이너 내부의 수신 포트를 바꾼다",
             ],
             2,
+            "실제로 포트를 여는 것은 docker run 의 옵션입니다.",
         ),
         Quiz(
             "컨테이너를 삭제한 뒤에도 데이터를 남기려면 무엇을 써야 하는가?",
             ["이미지 레이어", "컨테이너 쓰기 레이어", "볼륨", "환경 변수"],
             3,
+            "컨테이너 바깥에 저장되는 공간이어야 합니다.",
         ),
         Quiz(
             "chmod 755 script.sh 를 실행했을 때 소유자가 갖게 되는 권한은?",
             ["읽기만", "읽기와 쓰기", "읽기와 실행", "읽기, 쓰기, 실행"],
             4,
+            "읽기 4, 쓰기 2, 실행 1을 더한 값입니다.",
         ),
         Quiz(
             "디렉터리에서 실행(x) 권한이 빠지면 생기는 일은?",
@@ -92,6 +99,7 @@ def default_quizzes():
                 "디렉터리 안으로 들어갈 수 없다",
             ],
             4,
+            "디렉터리에서 x 는 실행이 아니라 다른 뜻입니다.",
         ),
         Quiz(
             "docker ps 와 docker ps -a 의 차이는?",
@@ -102,6 +110,7 @@ def default_quizzes():
                 "둘은 완전히 같은 명령이다",
             ],
             1,
+            "a 는 all 의 약자입니다.",
         ),
         Quiz(
             "실행 중인 컨테이너에 docker attach 로 들어간 뒤 exit 하면 어떻게 되는가?",
@@ -112,6 +121,7 @@ def default_quizzes():
                 "컨테이너가 자동으로 재시작된다",
             ],
             3,
+            "attach 는 컨테이너의 1번 프로세스에 직접 붙습니다.",
         ),
         Quiz(
             "ls -la 에서 a 옵션이 하는 일은?",
@@ -122,6 +132,7 @@ def default_quizzes():
                 "수정 시간 순으로 정렬한다",
             ],
             3,
+            "여기서도 a 는 all 입니다.",
         ),
     ]
 
@@ -221,6 +232,25 @@ class QuizGame:
             self.best_score = score
             print("새로운 최고 점수입니다.")
 
+    def ask_answer(self, quiz):
+        """정답 번호를 받는다. 0을 입력하면 힌트를 보여준다."""
+        hint_used = False
+
+        while True:
+            picked = ask_int("정답 입력 (0=힌트): ", 0, 4)
+
+            if picked != 0:
+                return picked, hint_used
+
+            if quiz.hint is None:
+                print("이 문제에는 힌트가 없습니다.")
+                continue
+
+            if not hint_used:
+                hint_used = True
+                print("힌트를 보면 1점이 깎입니다.")
+            print(f"힌트: {quiz.hint}")
+
     def play(self):
         """퀴즈를 순서대로 출제하고 결과를 보여준다."""
         if not self.quizzes:
@@ -234,21 +264,31 @@ class QuizGame:
         selected = random.sample(self.quizzes, total)
         print(f"퀴즈를 시작합니다. (총 {total}문제)")
 
-        score = 0
+        correct = 0
+        hints = 0
         for number, quiz in enumerate(selected, start=1):
             print("-" * 40)
             quiz.show(number)
-            picked = ask_int("정답 입력: ", 1, 4)
+            picked, hint_used = self.ask_answer(quiz)
+
+            if hint_used:
+                hints += 1
 
             if quiz.is_correct(picked):
                 print("정답입니다.")
-                score += 1
+                correct += 1
             else:
                 correct_text = quiz.choices[quiz.answer - 1]
                 print(f"틀렸습니다. 정답은 {quiz.answer}번 ({correct_text})입니다.")
 
         print("=" * 40)
-        print(f"결과: {total}문제 중 {score}문제 정답")
+        print(f"결과: {total}문제 중 {correct}문제 정답")
+
+        score = correct
+        if hints:
+            score = max(0, correct - hints)
+            print(f"힌트 {hints}회 사용으로 {hints}점 차감 → 최종 {score}점")
+
         self.update_best_score(score)
         print("=" * 40)
 
@@ -265,8 +305,9 @@ class QuizGame:
             choices.append(ask_text(f"선택지 {number}: "))
 
         answer = ask_int("정답 번호 (1-4): ", 1, 4)
+        hint = input("힌트 (없으면 그냥 Enter): ").strip() or None
 
-        self.quizzes.append(Quiz(question, choices, answer))
+        self.quizzes.append(Quiz(question, choices, answer, hint))
         print(f"퀴즈가 추가되었습니다. (현재 {len(self.quizzes)}개)")
 
         self.save()
