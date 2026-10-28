@@ -245,3 +245,14 @@ STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.jso
 `--no-ff` 옵션으로 main에 병합했다.
 `--no-ff`를 쓴 것은 그냥 `merge`하면 fast-forward가 일어나서
 `git log --graph`에 브랜치를 쓴 흔적이 남지 않기 때문이다.
+## 저장소 복제 실습
+
+`clone`과 `pull`을 직접 써 보기 위해 저장소를 별도 폴더에 복제하고,
+복제본에서 이 문단을 추가해 push한 뒤 원래 작업 폴더에서 pull로 가져왔다.
+
+- `git clone <URL> <폴더명>` — 원격 저장소를 통째로 내려받아 새 폴더를 만든다.
+  `.git` 디렉터리까지 함께 오기 때문에 커밋 이력이 전부 따라온다
+- `git pull` — 원격에 새로 생긴 커밋을 현재 작업 폴더로 가져와 병합한다
+
+clone은 저장소가 아직 없을 때 처음 한 번 받는 것이고,
+pull은 이미 가지고 있는 저장소를 최신 상태로 맞추는 것이다.
