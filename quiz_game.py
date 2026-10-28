@@ -128,6 +128,15 @@ def ask_int(prompt, low, high):
         return number
 
 
+def ask_text(prompt):
+    """비어 있지 않은 문자열을 받을 때까지 다시 묻는다."""
+    while True:
+        text = input(prompt).strip()
+        if text:
+            return text
+        print("입력이 비어 있습니다. 다시 입력해 주세요.")
+
+
 def play_quiz(quizzes):
     """퀴즈를 순서대로 출제하고 맞힌 개수를 돌려준다."""
     if not quizzes:
@@ -154,6 +163,22 @@ def play_quiz(quizzes):
     print(f"결과: {total}문제 중 {score}문제 정답")
     print("=" * 40)
     return score
+
+
+def add_quiz(quizzes):
+    """사용자에게 입력받아 새 퀴즈를 목록 끝에 추가한다."""
+    print("\n새 퀴즈를 추가합니다.")
+
+    question = ask_text("문제를 입력하세요: ")
+
+    choices = []
+    for number in range(1, 5):
+        choices.append(ask_text(f"선택지 {number}: "))
+
+    answer = ask_int("정답 번호 (1-4): ", 1, 4)
+
+    quizzes.append(Quiz(question, choices, answer))
+    print(f"퀴즈가 추가되었습니다. (현재 {len(quizzes)}개)")
 
 
 def show_quiz_list(quizzes):
@@ -188,6 +213,8 @@ def run():
 
         if choice == 1:
             play_quiz(quizzes)
+        elif choice == 2:
+            add_quiz(quizzes)
         elif choice == 3:
             show_quiz_list(quizzes)
         else:
