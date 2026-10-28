@@ -3,6 +3,7 @@
 import json
 import os
 import random
+from datetime import datetime
 
 # 저장 파일은 이 스크립트와 같은 폴더(프로젝트 루트)에 둔다.
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
@@ -16,7 +17,8 @@ MENU = """
 3. 퀴즈 목록
 4. 점수 확인
 5. 퀴즈 삭제
-6. 종료
+6. 기록 보기
+7. 종료
 ========================================"""
 
 
@@ -175,6 +177,7 @@ class QuizGame:
     def __init__(self):
         self.quizzes = []
         self.best_score = None
+        self.history = []    # 게임 기록 (날짜, 문제 수, 점수)
 
     # ----- 파일 입출력 -----
 
@@ -190,6 +193,7 @@ class QuizGame:
                 data = json.load(state_file)
             quizzes = [Quiz.from_dict(item) for item in data["quizzes"]]
             best_score = data.get("best_score")
+            history = data.get("history", [])
         except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
             print(f"저장 파일을 읽을 수 없습니다 ({error}).")
             print("기본 퀴즈 데이터로 새로 시작합니다.")
@@ -198,18 +202,21 @@ class QuizGame:
 
         self.quizzes = quizzes
         self.best_score = best_score
+        self.history = history
         print(f"저장된 퀴즈 {len(self.quizzes)}개를 불러왔습니다.")
 
     def reset_to_default(self):
         """기본 퀴즈로 초기화한다."""
         self.quizzes = default_quizzes()
         self.best_score = None
+        self.history = []
 
     def save(self):
         """현재 상태를 state.json에 저장한다."""
         data = {
             "quizzes": [quiz.to_dict() for quiz in self.quizzes],
             "best_score": self.best_score,
+            "history": self.history,
         }
 
         try:
@@ -291,6 +298,13 @@ class QuizGame:
             print(f"힌트 {hints}회 사용으로 {hints}점 차감 → 최종 {score}점")
 
         self.update_best_score(score)
+        self.history.append({
+            "played_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "total": total,
+            "correct": correct,
+            "hints": hints,
+            "score": score,
+        })
         print("=" * 40)
 
         self.save()
@@ -326,6 +340,25 @@ class QuizGame:
             print(f"{number}. {quiz.question}")
             print(f"   정답: {quiz.answer}번 ({correct_text})")
         print("-" * 40)
+
+    def show_history(self):
+        """지난 게임 기록을 최근 것부터 보여준다."""
+        if not self.history:
+            print("\n아직 게임 기록이 없습니다. 메뉴 1번에서 먼저 풀어 보세요.")
+            return
+
+        recent = self.history[-10:]
+        print(f"\n게임 기록 (전체 {len(self.history)}회 중 최근 {len(recent)}회)")
+        print("-" * 56)
+        for record in reversed(recent):
+            played_at = record["played_at"]
+            line = (
+                f"{played_at}  "
+                f"{record['total']}문제 중 {record['correct']}개 정답  "
+                f"힌트 {record['hints']}회  최종 {record['score']}점"
+            )
+            print(line)
+        print("-" * 56)
 
     def delete(self):
         """번호를 골라 퀴즈를 삭제한다."""
@@ -365,9 +398,9 @@ class QuizGame:
         try:
             while True:
                 self.show_menu()
-                choice = ask_int("선택: ", 1, 6)
+                choice = ask_int("선택: ", 1, 7)
 
-                if choice == 6:
+                if choice == 7:
                     print("게임을 종료합니다.")
                     break
 
@@ -381,6 +414,8 @@ class QuizGame:
                     self.show_best()
                 elif choice == 5:
                     self.delete()
+                elif choice == 6:
+                    self.show_history()
         finally:
             # 정상 종료든 Ctrl+C 든 마지막 상태는 남긴다.
             self.save()
