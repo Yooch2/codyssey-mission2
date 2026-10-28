@@ -15,7 +15,8 @@ MENU = """
 2. 퀴즈 추가
 3. 퀴즈 목록
 4. 점수 확인
-5. 종료
+5. 퀴즈 삭제
+6. 종료
 ========================================"""
 
 
@@ -326,6 +327,27 @@ class QuizGame:
             print(f"   정답: {quiz.answer}번 ({correct_text})")
         print("-" * 40)
 
+    def delete(self):
+        """번호를 골라 퀴즈를 삭제한다."""
+        if not self.quizzes:
+            print("\n등록된 퀴즈가 없습니다. 삭제할 것이 없습니다.")
+            return
+
+        self.show_list()
+
+        last = len(self.quizzes)
+        number = ask_int(f"삭제할 번호 (0=취소, 1-{last}): ", 0, last)
+
+        if number == 0:
+            print("삭제를 취소했습니다.")
+            return
+
+        removed = self.quizzes.pop(number - 1)
+        print(f"삭제했습니다: {removed.question}")
+        print(f"남은 퀴즈 {len(self.quizzes)}개")
+
+        self.save()
+
     def show_best(self):
         """최고 점수를 보여준다."""
         if self.best_score is None:
@@ -343,9 +365,9 @@ class QuizGame:
         try:
             while True:
                 self.show_menu()
-                choice = ask_int("선택: ", 1, 5)
+                choice = ask_int("선택: ", 1, 6)
 
-                if choice == 5:
+                if choice == 6:
                     print("게임을 종료합니다.")
                     break
 
@@ -357,6 +379,8 @@ class QuizGame:
                     self.show_list()
                 elif choice == 4:
                     self.show_best()
+                elif choice == 5:
+                    self.delete()
         finally:
             # 정상 종료든 Ctrl+C 든 마지막 상태는 남긴다.
             self.save()
