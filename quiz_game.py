@@ -128,6 +128,34 @@ def ask_int(prompt, low, high):
         return number
 
 
+def play_quiz(quizzes):
+    """퀴즈를 순서대로 출제하고 맞힌 개수를 돌려준다."""
+    if not quizzes:
+        print("\n등록된 퀴즈가 없습니다. 메뉴 2번에서 먼저 추가해 주세요.")
+        return None
+
+    total = len(quizzes)
+    print(f"\n퀴즈를 시작합니다. (총 {total}문제)")
+
+    score = 0
+    for number, quiz in enumerate(quizzes, start=1):
+        print("-" * 40)
+        quiz.show(number)
+        picked = ask_int("정답 입력: ", 1, 4)
+
+        if quiz.is_correct(picked):
+            print("정답입니다.")
+            score += 1
+        else:
+            correct_text = quiz.choices[quiz.answer - 1]
+            print(f"틀렸습니다. 정답은 {quiz.answer}번 ({correct_text})입니다.")
+
+    print("=" * 40)
+    print(f"결과: {total}문제 중 {score}문제 정답")
+    print("=" * 40)
+    return score
+
+
 def show_quiz_list(quizzes):
     """등록된 퀴즈 목록을 보여준다."""
     if not quizzes:
@@ -158,7 +186,9 @@ def run():
             print("게임을 종료합니다.")
             break
 
-        if choice == 3:
+        if choice == 1:
+            play_quiz(quizzes)
+        elif choice == 3:
             show_quiz_list(quizzes)
         else:
             print("아직 구현되지 않은 기능입니다.")
