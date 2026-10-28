@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 실행 중 생성되는 상태 파일
+state.json
+
+# macOS
+.DS_Store
