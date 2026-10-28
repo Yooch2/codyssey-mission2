@@ -196,12 +196,34 @@ def show_quiz_list(quizzes):
     print("-" * 40)
 
 
+def update_best_score(best_score, score):
+    """이번 점수가 더 높으면 최고 점수를 갱신해서 돌려준다."""
+    if score is None:
+        return best_score
+
+    if best_score is None or score > best_score:
+        print("새로운 최고 점수입니다.")
+        return score
+
+    return best_score
+
+
+def show_best_score(best_score):
+    """최고 점수를 보여준다."""
+    if best_score is None:
+        print("\n아직 퀴즈를 푼 기록이 없습니다. 메뉴 1번에서 먼저 풀어 보세요.")
+        return
+
+    print(f"\n최고 점수: {best_score}문제 정답")
+
+
 def show_menu():
     print(MENU)
 
 
 def run():
     quizzes = default_quizzes()
+    best_score = None
 
     while True:
         show_menu()
@@ -212,13 +234,14 @@ def run():
             break
 
         if choice == 1:
-            play_quiz(quizzes)
+            score = play_quiz(quizzes)
+            best_score = update_best_score(best_score, score)
         elif choice == 2:
             add_quiz(quizzes)
         elif choice == 3:
             show_quiz_list(quizzes)
-        else:
-            print("아직 구현되지 않은 기능입니다.")
+        elif choice == 4:
+            show_best_score(best_score)
 
 
 def main():
