@@ -2,6 +2,7 @@
 
 import json
 import os
+import random
 
 # 저장 파일은 이 스크립트와 같은 폴더(프로젝트 루트)에 둔다.
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
@@ -226,11 +227,15 @@ class QuizGame:
             print("\n등록된 퀴즈가 없습니다. 메뉴 2번에서 먼저 추가해 주세요.")
             return
 
-        total = len(self.quizzes)
-        print(f"\n퀴즈를 시작합니다. (총 {total}문제)")
+        available = len(self.quizzes)
+        total = ask_int(f"\n몇 문제를 풀까요? (1-{available}): ", 1, available)
+
+        # 등록된 퀴즈 중 total개를 겹치지 않게 뽑고, 순서도 매번 달라진다.
+        selected = random.sample(self.quizzes, total)
+        print(f"퀴즈를 시작합니다. (총 {total}문제)")
 
         score = 0
-        for number, quiz in enumerate(self.quizzes, start=1):
+        for number, quiz in enumerate(selected, start=1):
             print("-" * 40)
             quiz.show(number)
             picked = ask_int("정답 입력: ", 1, 4)
