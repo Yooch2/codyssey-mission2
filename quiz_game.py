@@ -1,5 +1,11 @@
 """터미널에서 동작하는 퀴즈 게임."""
 
+import json
+import os
+
+# 저장 파일은 이 스크립트와 같은 폴더(프로젝트 루트)에 둔다.
+STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
+
 MENU = """
 ========================================
             나만의 퀴즈 게임
@@ -33,6 +39,19 @@ class Quiz:
     def is_correct(self, picked):
         """고른 번호가 정답이면 True를 돌려준다."""
         return picked == self.answer
+
+    def to_dict(self):
+        """JSON으로 저장할 수 있는 딕셔너리로 바꾼다."""
+        return {
+            "question": self.question,
+            "choices": self.choices,
+            "answer": self.answer,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """저장 파일에서 읽은 딕셔너리로 Quiz 객체를 만든다."""
+        return cls(data["question"], data["choices"], data["answer"])
 
 
 def default_quizzes():
@@ -104,6 +123,43 @@ def default_quizzes():
             3,
         ),
     ]
+
+
+def load_state():
+    """state.json에서 퀴즈 목록과 최고 점수를 읽어 온다."""
+    if not os.path.exists(STATE_FILE):
+        print("저장된 파일이 없어 기본 퀴즈로 시작합니다.")
+        return default_quizzes(), None
+
+    try:
+        with open(STATE_FILE, encoding="utf-8") as state_file:
+            data = json.load(state_file)
+        quizzes = [Quiz.from_dict(item) for item in data["quizzes"]]
+        best_score = data.get("best_score")
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+        print(f"저장 파일을 읽을 수 없습니다 ({error}).")
+        print("기본 퀴즈 데이터로 새로 시작합니다.")
+        return default_quizzes(), None
+
+    print(f"저장된 퀴즈 {len(quizzes)}개를 불러왔습니다.")
+    return quizzes, best_score
+
+
+def save_state(quizzes, best_score):
+    """퀴즈 목록과 최고 점수를 state.json에 저장한다."""
+    data = {
+        "quizzes": [quiz.to_dict() for quiz in quizzes],
+        "best_score": best_score,
+    }
+
+    try:
+        with open(STATE_FILE, "w", encoding="utf-8") as state_file:
+            json.dump(data, state_file, ensure_ascii=False, indent=2)
+    except OSError as error:
+        print(f"저장하지 못했습니다: {error}")
+        return False
+
+    return True
 
 
 def ask_int(prompt, low, high):
@@ -222,26 +278,31 @@ def show_menu():
 
 
 def run():
-    quizzes = default_quizzes()
-    best_score = None
+    quizzes, best_score = load_state()
 
-    while True:
-        show_menu()
-        choice = ask_int("선택: ", 1, 5)
+    try:
+        while True:
+            show_menu()
+            choice = ask_int("선택: ", 1, 5)
 
-        if choice == 5:
-            print("게임을 종료합니다.")
-            break
+            if choice == 5:
+                print("게임을 종료합니다.")
+                break
 
-        if choice == 1:
-            score = play_quiz(quizzes)
-            best_score = update_best_score(best_score, score)
-        elif choice == 2:
-            add_quiz(quizzes)
-        elif choice == 3:
-            show_quiz_list(quizzes)
-        elif choice == 4:
-            show_best_score(best_score)
+            if choice == 1:
+                score = play_quiz(quizzes)
+                best_score = update_best_score(best_score, score)
+                save_state(quizzes, best_score)
+            elif choice == 2:
+                add_quiz(quizzes)
+                save_state(quizzes, best_score)
+            elif choice == 3:
+                show_quiz_list(quizzes)
+            elif choice == 4:
+                show_best_score(best_score)
+    finally:
+        # 정상 종료든 Ctrl+C 든 마지막 상태는 남긴다.
+        save_state(quizzes, best_score)
 
 
 def main():
@@ -249,7 +310,7 @@ def main():
         run()
     except (KeyboardInterrupt, EOFError):
         print()
-        print("입력이 중단되어 게임을 종료합니다.")
+        print("입력이 중단되었습니다. 진행 상황을 저장하고 종료합니다.")
 
 
 if __name__ == "__main__":
