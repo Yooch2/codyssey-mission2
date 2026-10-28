@@ -128,11 +128,28 @@ def ask_int(prompt, low, high):
         return number
 
 
+def show_quiz_list(quizzes):
+    """등록된 퀴즈 목록을 보여준다."""
+    if not quizzes:
+        print("\n등록된 퀴즈가 없습니다. 메뉴 2번에서 먼저 추가해 주세요.")
+        return
+
+    print(f"\n등록된 퀴즈 {len(quizzes)}개")
+    print("-" * 40)
+    for number, quiz in enumerate(quizzes, start=1):
+        correct_text = quiz.choices[quiz.answer - 1]
+        print(f"{number}. {quiz.question}")
+        print(f"   정답: {quiz.answer}번 ({correct_text})")
+    print("-" * 40)
+
+
 def show_menu():
     print(MENU)
 
 
 def run():
+    quizzes = default_quizzes()
+
     while True:
         show_menu()
         choice = ask_int("선택: ", 1, 5)
@@ -141,7 +158,10 @@ def run():
             print("게임을 종료합니다.")
             break
 
-        print("아직 구현되지 않은 기능입니다.")
+        if choice == 3:
+            show_quiz_list(quizzes)
+        else:
+            print("아직 구현되지 않은 기능입니다.")
 
 
 def main():
