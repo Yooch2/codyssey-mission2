@@ -12,6 +12,29 @@ MENU = """
 ========================================"""
 
 
+class Quiz:
+    """객관식 퀴즈 한 문제를 표현한다."""
+
+    def __init__(self, question, choices, answer):
+        self.question = question    # 문제 문장
+        self.choices = choices      # 선택지 4개가 담긴 리스트
+        self.answer = answer        # 정답 번호 (1~4)
+
+    def show(self, number=None):
+        """문제와 선택지를 화면에 출력한다."""
+        if number is None:
+            print("[문제]")
+        else:
+            print(f"[문제 {number}]")
+        print(self.question)
+        for index, choice in enumerate(self.choices, start=1):
+            print(f"{index}. {choice}")
+
+    def is_correct(self, picked):
+        """고른 번호가 정답이면 True를 돌려준다."""
+        return picked == self.answer
+
+
 def ask_int(prompt, low, high):
     """low 이상 high 이하의 정수를 받을 때까지 다시 묻는다."""
     while True:
