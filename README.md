@@ -220,6 +220,71 @@ STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.jso
 `hint`와 `history`는 나중에 추가한 항목이라 `data.get()`으로 읽는다.
 그래서 이 항목들이 없는 예전 저장 파일도 오류 없이 불러온다.
 
+### 저장 중 중단에 대한 대비
+
+`open(파일, "w")`는 여는 순간 기존 내용을 지운다. 그 상태에서 쓰기가 끝나기 전에
+프로그램이 죽으면 `state.json`이 잘린 채 남고 그동안 쌓은 데이터가 전부 사라진다.
+
+그래서 임시 파일에 먼저 다 쓴 뒤 `os.replace`로 한 번에 바꿔치기한다.
+`os.replace`는 같은 파일 시스템 안에서 원자적으로 동작하므로,
+중간에 죽더라도 원본은 이전 상태 그대로 남는다.
+
+```python
+temp_file = STATE_FILE + ".tmp"
+with open(temp_file, "w", encoding="utf-8") as state_file:
+    json.dump(data, state_file, ensure_ascii=False, indent=2)
+os.replace(temp_file, STATE_FILE)
+```
+
+쓰기에 실패하면 남은 임시 파일을 지우고 `False`를 돌려준다.
+
+### 백업과 복구
+
+프로그램이 자동 백업을 만들지는 않는다. 데이터가 퀴즈 목록과 점수뿐이고,
+손상 시 기본 퀴즈로 복구되도록 되어 있어 치명적인 손실이 아니라고 판단했다.
+
+직접 백업하려면 실행 전에 파일을 복사해 두면 된다.
+
+```
+cp state.json state.backup.json      # 백업
+cp state.backup.json state.json      # 복구
+```
+
+손상된 파일을 만났을 때 프로그램은 안내 메시지를 내고 기본 퀴즈로 시작한다.
+이때 손상된 원본은 그대로 남아 있으므로, 내용을 직접 열어 고칠 수 있으면
+고친 뒤 다시 실행하면 된다. 다음 저장이 일어나기 전까지는 덮어써지지 않는다.
+
+### JSON 파일 방식의 한계
+
+지금 규모에서는 JSON 파일 하나로 충분하다. 퀴즈가 10개 안팎이고 기록도 몇 줄이라
+읽고 쓰는 데 체감되는 시간이 없다.
+
+다만 이 방식에는 구조적인 한계가 있다.
+
+**전체를 한 번에 읽고 쓴다.** `load()`는 파일 전체를 파싱해 메모리에 올리고,
+`save()`는 변경이 한 줄이어도 전체를 다시 쓴다. 퀴즈가 1000개가 되면 퀴즈 하나를
+추가할 때마다 1000개를 통째로 직렬화한다. 데이터 크기에 비례해 저장 시간이 늘어난다.
+
+**전부 메모리에 올린다.** 당장 필요한 문제가 3개여도 `self.quizzes`에는 전체가 들어 있다.
+기록(`history`)은 지우지 않고 계속 쌓이므로 오래 쓸수록 파일과 메모리가 함께 커진다.
+
+**부분 조회가 안 된다.** "최근 10회 기록만"을 보려 해도 전체를 읽은 뒤
+`self.history[-10:]`로 잘라야 한다. 파일 중간만 읽는 방법이 없다.
+
+**동시 접근에 취약하다.** 두 프로그램이 동시에 저장하면 나중에 쓴 쪽이 앞의 변경을 덮는다.
+지금은 한 사람이 하나만 실행하는 전제라 문제가 되지 않는다.
+
+규모가 커진다면 다음을 고려할 수 있다.
+
+| 상황 | 대안 |
+|---|---|
+| 퀴즈가 수천 개 이상 | SQLite 같은 내장 데이터베이스. 표준 라이브러리 `sqlite3`로 쓸 수 있고 부분 조회와 인덱스가 된다 |
+| 기록이 계속 쌓임 | 기록만 별도 파일로 분리하거나, 일정 개수만 남기고 오래된 것은 잘라내기 |
+| 목록 화면이 느려짐 | 한 번에 N개씩 끊어 보여 주는 페이징 |
+| 여러 명이 동시에 사용 | 파일 잠금 또는 서버를 둔 데이터베이스 |
+
+이번 미션은 외부 라이브러리 사용이 금지되어 있고 데이터도 작아서 JSON을 택했다.
+
 ### state.json을 저장소에 올리지 않은 이유
 
 실행할 때마다 내용이 바뀌는 데이터라 커밋에 섞이면 변경 이력이 지저분해진다.
@@ -237,9 +302,72 @@ STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.jso
 
 외부 라이브러리는 사용하지 않았다.
 
+## 수정 지점
+
+기능을 바꾸거나 추가할 때 어디를 손봐야 하는지 정리한다. 파일은 `quiz_game.py` 하나다.
+
+| 하고 싶은 일 | 손댈 곳 |
+|---|---|
+| 기본 퀴즈 내용·개수 변경 | `default_quizzes()` |
+| 퀴즈에 새 항목 추가 (예: 난이도) | `Quiz.__init__`, `Quiz.to_dict`, `Quiz.from_dict`, `QuizGame.add` — 네 곳을 함께 고쳐야 한다 |
+| 메뉴 항목 추가·순서 변경 | `MENU` 상수, `QuizGame.run`의 분기, `ask_int`의 범위 값 |
+| 입력 검증 규칙 변경 | `ask_int`, `ask_text` |
+| 점수 계산·힌트 차감 방식 변경 | `QuizGame.play`, `QuizGame.update_best_score` |
+| 출제 방식 변경 (랜덤·문제 수) | `QuizGame.play`의 `random.sample` 부분 |
+| 저장 파일 경로·형식 변경 | `STATE_FILE`, `QuizGame.load`, `QuizGame.save` |
+| 저장 항목 추가 | `QuizGame.save`의 `data`, `QuizGame.load`의 읽기 부분, `QuizGame.__init__`, `reset_to_default` |
+| 손상 파일 처리 방식 변경 | `QuizGame.load`의 `except` 블록 |
+| 종료·중단 시 동작 변경 | `QuizGame.run`의 `finally`, `main()`의 `except` |
+
+### 항목을 추가할 때 주의할 점
+
+`Quiz`에 새 속성을 넣으면 네 군데가 함께 바뀌어야 한다.
+
+1. `__init__` — 기본값을 주어야 기존 호출이 깨지지 않는다
+2. `to_dict` — 저장되도록 키를 추가
+3. `from_dict` — `data.get("키")`로 읽어야 예전 파일도 열린다
+4. `QuizGame.add` — 사용자에게 입력받는 부분
+
+`hint`를 추가할 때 실제로 이 네 곳을 고쳤다. 특히 3번을 `data["키"]`로 쓰면
+예전 저장 파일에서 `KeyError`가 나고, 프로그램은 이것을 "파일 손상"으로 오해해
+기본 퀴즈로 초기화해 버린다.
+
 ## Git 작업 방식
 
 커밋은 기능 단위로 나눴고, 메시지는 `Feat:`, `Refactor:`, `Docs:`, `Chore:` 접두어를 붙였다.
+총 커밋 수는 19개다.
+
+```
+$ git rev-list --count HEAD
+19
+
+$ git log --oneline --graph
+* 002a711 Docs: 저장소 복제 실습 내용 추가
+* 360e5d0 Docs: README 작성 - 개요, 주제 선정 이유, 실행 방법, 기능, 구조, 데이터 파일 설명
+* 091b4f2 Feat: 게임 기록 저장과 조회 기능 추가
+* 4e88641 Feat: 퀴즈 삭제 기능 추가
+* 31ceb37 Feat: 힌트 기능과 점수 차감 로직 추가
+* 9436115 Feat: 문제 수 선택과 랜덤 출제 기능 추가
+* 081a4ad Refactor: 게임 상태와 동작을 QuizGame 클래스로 분리
+* 9066f65 Feat: state.json 저장과 불러오기 구현
+* 4037d7c Feat: 최고 점수 확인과 갱신 기능 구현
+*   81deb3a Merge branch 'feature/add-quiz'
+|\
+| * 83696dc Feat: 새 퀴즈 등록 기능 구현
+|/
+*   a0f915a Merge branch 'feature/play'
+|\
+| * 123778d Feat: 퀴즈 출제와 채점 기능 구현
+|/
+* 1cff0fa Feat: 등록된 퀴즈 목록 조회 기능 구현
+* a4c35b5 Feat: Docker·리눅스 기초 기본 퀴즈 8문제 추가
+* 85f722c Feat: 개별 문제를 표현하는 Quiz 클래스 추가
+* 2b08bf1 Feat: 공통 입력 검증과 중단 처리 추가
+* 2137568 Feat: 메뉴 출력과 종료 기능 구현
+* 63d968d Chore: 저장소 초기화와 README 초안 작성
+```
+
+두 군데가 갈라졌다 합쳐진 모양이 `feature/play`와 `feature/add-quiz` 브랜치를 병합한 지점이다.
 
 퀴즈 풀기와 퀴즈 추가 기능은 `feature/play`, `feature/add-quiz` 브랜치에서 작업한 뒤
 `--no-ff` 옵션으로 main에 병합했다.
@@ -256,3 +384,22 @@ STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.jso
 
 clone은 저장소가 아직 없을 때 처음 한 번 받는 것이고,
 pull은 이미 가지고 있는 저장소를 최신 상태로 맞추는 것이다.
+
+두 명령은 커밋 이력에 남지 않으므로 `git reflog`로 확인한다.
+
+복제한 폴더(`mission2-clone`)에서 본 기록이다.
+
+```
+$ git reflog --date=short
+002a711 HEAD@{2026-10-28}: commit: Docs: 저장소 복제 실습 내용 추가
+360e5d0 HEAD@{2026-10-28}: clone: from https://github.com/Yooch2/codyssey-mission2.git
+```
+
+원래 작업 폴더에서 `pull`로 가져온 기록이다.
+
+```
+$ git reflog --date=short | grep pull
+002a711 HEAD@{2026-10-28}: pull: Fast-forward
+```
+
+복제본에서 만든 커밋 `002a711`이 원래 폴더로 넘어온 것을 두 기록에서 같은 해시로 확인할 수 있다.

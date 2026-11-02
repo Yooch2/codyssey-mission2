@@ -219,11 +219,18 @@ class QuizGame:
             "history": self.history,
         }
 
+        # 바로 덮어쓰면 쓰는 도중에 죽었을 때 파일이 잘린 채 남는다.
+        # 임시 파일에 다 쓴 뒤 한 번에 바꿔치기해서 원본이 깨지지 않게 한다.
+        temp_file = STATE_FILE + ".tmp"
+
         try:
-            with open(STATE_FILE, "w", encoding="utf-8") as state_file:
+            with open(temp_file, "w", encoding="utf-8") as state_file:
                 json.dump(data, state_file, ensure_ascii=False, indent=2)
+            os.replace(temp_file, STATE_FILE)
         except OSError as error:
             print(f"저장하지 못했습니다: {error}")
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
             return False
 
         return True
